@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  # Central registry database
+  central-postgres:
+    image: postgres:15-alpine
+    container_name: central-registry-db
+    environment:
+      POSTGRES_DB: central_registry
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - '5432:5432'
+    volumes:
+      - central_postgres_data:/var/lib/postgresql/data
+    networks:
+      - multitenant-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Example tenant database
+  tenant-postgres:
+    image: postgres:15-alpine
+    container_name: tenant-example-db
+    environment:
+      POSTGRES_DB: tenant_example
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - '5433:5432'
+    volumes:
+      - tenant_postgres_data:/var/lib/postgresql/data
+    networks:
+      - multitenant-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # NestJS application
+  nestjs-app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: nestjs-multitenant-app
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      CENTRAL_DB_HOST: central-postgres
+      CENTRAL_DB_PORT: 5432
+      CENTRAL_DB_NAME: central_registry
+      CENTRAL_DB_USER: postgres
+      CENTRAL_DB_PASS: password
+      ADMIN_DB_HOST: central-postgres
+      ADMIN_DB_PORT: 5432
+      ADMIN_DB_USER: postgres
+      ADMIN_DB_PASS: password
+      JWT_SECRET: dev-jwt-secret-change-in-production
+      JWT_EXPIRES_IN: 3600s
+      LOG_LEVEL: info
+      BCRYPT_ROUNDS: 12
+    depends_on:
+      central-postgres:
+        condition: service_healthy
+      tenant-postgres:
+        condition: service_healthy
+    networks:
+      - multitenant-network
+    volumes:
+      - ../src:/app/src
+      - ../package.json:/app/package.json
+      - ../tsconfig.json:/app/tsconfig.json
+    command: npm run start:dev
+
+  # Redis for session storage (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: redis-cache
+    ports:
+      - '6379:6379'
+    networks:
+      - multitenant-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  central_postgres_data:
+  tenant_postgres_data:
+
+networks:
+  multitenant-network:
+    driver: bridge
