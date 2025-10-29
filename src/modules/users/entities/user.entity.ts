@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
 
 @Entity('users')
@@ -28,6 +29,9 @@ export class User {
 
   @Column({ name: 'active', default: true })
   active: boolean;
+
+  @OneToMany('UserRole', 'user')
+  userRoles: any[];
 
   @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
   createdAt: Date;

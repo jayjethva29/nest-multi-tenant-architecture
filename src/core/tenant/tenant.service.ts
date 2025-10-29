@@ -15,6 +15,10 @@ import { CreateTenantDto } from './dto/create-tenant.dto';
 import { TenantResponseDto } from './dto/tenant-response.dto';
 import { AuthService } from '../../modules/auth/auth.service';
 import { createTenantDataSource } from '../../config/typeorm.config';
+import {
+  initializeTenantPermissions,
+  assignDefaultRoleToUser,
+} from '../../../scripts/initialize-permissions';
 
 @Injectable()
 export class TenantService {
@@ -63,12 +67,19 @@ export class TenantService {
       await this.runTenantMigrations(tenant);
       this.logger.log(`Tenant migrations completed: ${tenant.id}`);
 
+      // Initialize default permissions and roles
+      await this.initializeTenantPermissions(tenant);
+      this.logger.log(`Tenant permissions initialized: ${tenant.id}`);
+
       // Create admin user if provided
       if (createTenantDto.adminUser) {
         const adminUser = await this.authService.createAdminUser(
           tenant.id,
           createTenantDto.adminUser,
         );
+
+        // Assign admin role to the admin user
+        await this.assignAdminRoleToUser(tenant, adminUser.id);
 
         adminToken = await this.authService.generateAdminToken(
           tenant.id,
@@ -168,6 +179,72 @@ export class TenantService {
       await tenantDataSource.initialize();
       await tenantDataSource.runMigrations();
       this.logger.log(`Migrations completed for: ${tenant.dbName}`);
+    } finally {
+      if (tenantDataSource.isInitialized) {
+        await tenantDataSource.destroy();
+      }
+    }
+  }
+
+  private async initializeTenantPermissions(tenant: Tenant): Promise<void> {
+    const tenantDataSource = createTenantDataSource({
+      host: tenant.dbHost,
+      port: tenant.dbPort,
+      username: tenant.dbUser,
+      password: tenant.dbPassword,
+      database: tenant.dbName,
+      poolOptions: tenant.poolOptions,
+    });
+
+    try {
+      await tenantDataSource.initialize();
+      await initializeTenantPermissions(tenantDataSource);
+      this.logger.log(`Permissions initialized for: ${tenant.dbName}`);
+    } finally {
+      if (tenantDataSource.isInitialized) {
+        await tenantDataSource.destroy();
+      }
+    }
+  }
+
+  private async assignAdminRoleToUser(tenant: Tenant, userId: string): Promise<void> {
+    const tenantDataSource = createTenantDataSource({
+      host: tenant.dbHost,
+      port: tenant.dbPort,
+      username: tenant.dbUser,
+      password: tenant.dbPassword,
+      database: tenant.dbName,
+      poolOptions: tenant.poolOptions,
+    });
+
+    try {
+      await tenantDataSource.initialize();
+
+      // Import Role and UserRole entities
+      const { Role, UserRole } = await import('../../modules/permissions/entities');
+      const roleRepository = tenantDataSource.getRepository(Role);
+      const userRoleRepository = tenantDataSource.getRepository(UserRole);
+
+      // Find admin role
+      const adminRole = await roleRepository.findOne({
+        where: { name: 'admin' },
+      });
+
+      if (adminRole) {
+        // Check if user already has admin role
+        const existingUserRole = await userRoleRepository.findOne({
+          where: { userId, roleId: adminRole.id },
+        });
+
+        if (!existingUserRole) {
+          const userRole = userRoleRepository.create({
+            userId,
+            roleId: adminRole.id,
+          });
+          await userRoleRepository.save(userRole);
+          this.logger.log(`Assigned admin role to user ${userId}`);
+        }
+      }
     } finally {
       if (tenantDataSource.isInitialized) {
         await tenantDataSource.destroy();

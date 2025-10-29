@@ -5,6 +5,7 @@ import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { TenantConnectionManager } from '../../core/connection/tenant-connection.manager';
+import { assignDefaultRoleToUser } from '../../../scripts/initialize-permissions';
 
 @Injectable()
 export class UsersService {
@@ -44,6 +45,14 @@ export class UsersService {
     });
 
     const savedUser = await userRepository.save(user);
+
+    // Assign default role to the user
+    try {
+      const tenantDataSource = await this.tenantConnectionManager.getDataSourceForTenant(tenantId);
+      await assignDefaultRoleToUser(tenantDataSource, savedUser.id);
+    } catch (error) {
+      this.logger.warn(`Failed to assign default role to user ${savedUser.id}: ${error.message}`);
+    }
 
     this.logger.log(`User created: ${savedUser.email} (${savedUser.role}) for tenant: ${tenantId}`);
 

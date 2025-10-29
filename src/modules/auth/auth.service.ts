@@ -57,7 +57,7 @@ export class AuthService {
     }
 
     const payload: JwtPayload = {
-      sub: user.id,
+      id: user.id,
       tenantId: tenantId,
       email: user.email,
     };
@@ -99,7 +99,7 @@ export class AuthService {
 
   async generateAdminToken(tenantId: string, userId: string, email: string): Promise<string> {
     const payload: JwtPayload = {
-      sub: userId,
+      id: userId,
       tenantId: tenantId,
       email,
     };

@@ -20,7 +20,7 @@ export class LoggingInterceptor implements NestInterceptor {
     this.logger.log(`Incoming Request: ${method} ${url}`, {
       requestId,
       tenantId: tenantId || user?.tenantId,
-      userId: user?.sub,
+      userId: user?.id,
       method,
       url,
       userAgent,
@@ -39,7 +39,7 @@ export class LoggingInterceptor implements NestInterceptor {
             {
               requestId,
               tenantId: tenantId || user?.tenantId,
-              userId: user?.sub,
+              userId: user?.id,
               method,
               url,
               statusCode,
@@ -57,7 +57,7 @@ export class LoggingInterceptor implements NestInterceptor {
             {
               requestId,
               tenantId: tenantId || user?.tenantId,
-              userId: user?.sub,
+              userId: user?.id,
               method,
               url,
               statusCode: error.status || 500,

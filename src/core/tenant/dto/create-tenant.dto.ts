@@ -1,4 +1,12 @@
-import { IsString, IsNotEmpty, IsOptional, IsObject, ValidateNested } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsObject,
+  ValidateNested,
+  IsEmail,
+  MinLength,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -21,6 +29,31 @@ class DatabaseConfigDto {
   @IsString()
   @IsNotEmpty()
   password: string;
+}
+
+class AdminUserDto {
+  @ApiProperty({ description: 'Admin user email', example: 'admin@company.com' })
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
+
+  @ApiProperty({
+    description: 'Admin user password (min 6 characters)',
+    example: 'securePassword123',
+  })
+  @IsString()
+  @MinLength(6)
+  password: string;
+
+  @ApiProperty({ description: 'Admin user first name', example: 'Admin' })
+  @IsString()
+  @IsNotEmpty()
+  firstName: string;
+
+  @ApiProperty({ description: 'Admin user last name', example: 'User' })
+  @IsString()
+  @IsNotEmpty()
+  lastName: string;
 }
 
 class PoolOptionsDto {
@@ -62,13 +95,9 @@ export class CreateTenantDto {
   @Type(() => PoolOptionsDto)
   poolOptions?: PoolOptionsDto;
 
-  @ApiPropertyOptional({ description: 'Admin user details for tenant setup' })
+  @ApiPropertyOptional({ description: 'Admin user details for tenant setup', type: AdminUserDto })
   @IsOptional()
-  @IsObject()
-  adminUser?: {
-    email: string;
-    password: string;
-    firstName: string;
-    lastName: string;
-  };
+  @ValidateNested()
+  @Type(() => AdminUserDto)
+  adminUser?: AdminUserDto;
 }

@@ -13,16 +13,20 @@ import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Users')
 @Controller('/users')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions({ resource: 'users', action: 'read' })
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all users in tenant' })
   @ApiResponse({
@@ -35,7 +39,7 @@ export class UsersController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions({ resource: 'users', action: 'create' })
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new user in tenant' })
@@ -60,6 +64,7 @@ export class UsersController {
 
   // TODO: This endpoint should be removed after development
   @Post(':tenantId/admin')
+  @Public()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new admin user in tenant (Public endpoint)' })
   @ApiParam({ name: 'tenantId', description: 'Tenant ID' })

@@ -13,6 +13,7 @@ import { TenantService } from './tenant.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { TenantResponseDto } from './dto/tenant-response.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Public } from '../../common/decorators/public.decorator';
 import { Tenant } from './tenant.entity';
 
 @ApiTags('Tenants')
@@ -21,11 +22,16 @@ export class TenantController {
   constructor(private readonly tenantService: TenantService) {}
 
   @Post()
+  @Public()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a new tenant' })
+  @ApiOperation({
+    summary: 'Create a new tenant with admin user',
+    description:
+      'Creates a new tenant with database, permissions, roles, and admin user. This is a public endpoint for initial tenant setup.',
+  })
   @ApiResponse({
     status: 201,
-    description: 'Tenant created successfully',
+    description: 'Tenant created successfully with admin user and access token',
     type: TenantResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Invalid tenant data' })

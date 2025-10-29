@@ -9,6 +9,7 @@ import { TenantModule } from './core/tenant/tenant.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { ProductsModule } from './modules/products/products.module';
+import { PermissionsModule } from './modules/permissions/permissions.module';
 import { RequestIdInterceptor } from './common/interceptors/request-id.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
@@ -49,6 +50,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     AuthModule,
     UsersModule,
     ProductsModule,
+    PermissionsModule,
   ],
   providers: [
     // Global guards
