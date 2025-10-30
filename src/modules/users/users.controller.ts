@@ -18,6 +18,8 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../../common/decorators/current-user.decorator';
+import { ResponseMessage } from '../../common/helpers/response-mapping/response.decorator';
+import { UserResponseMessages } from '../../common/constants/response-messages';
 
 @ApiTags('Users')
 @Controller('/users')
@@ -27,6 +29,7 @@ export class UsersController {
 
   @Get()
   @RequirePermissions({ resource: 'users', action: 'read' })
+  @ResponseMessage(UserResponseMessages.USERS_FETCHED)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all users in tenant' })
   @ApiResponse({
@@ -40,6 +43,7 @@ export class UsersController {
 
   @Post()
   @RequirePermissions({ resource: 'users', action: 'create' })
+  @ResponseMessage(UserResponseMessages.USER_CREATED)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new user in tenant' })
@@ -65,6 +69,7 @@ export class UsersController {
   // TODO: This endpoint should be removed after development
   @Post(':tenantId/admin')
   @Public()
+  @ResponseMessage(UserResponseMessages.ADMIN_CREATED)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new admin user in tenant (Public endpoint)' })
   @ApiParam({ name: 'tenantId', description: 'Tenant ID' })

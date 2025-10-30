@@ -3,6 +3,8 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService, LoginResult } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { Public } from '../../common/decorators/public.decorator';
+import { ResponseMessage } from '../../common/helpers/response-mapping/response.decorator';
+import { AuthResponseMessages } from '@/common/constants/response-messages';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -33,6 +35,7 @@ export class AuthController {
     },
   })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  @ResponseMessage(AuthResponseMessages.LOGIN_SUCCESS)
   async login(@Body() loginDto: LoginDto): Promise<LoginResult> {
     return this.authService.login(loginDto.tenantId, loginDto.email, loginDto.password);
   }

@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, Logger } from '@nestjs/common';
+import { Injectable, ConflictException, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
@@ -6,6 +6,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { TenantConnectionManager } from '../../core/connection/tenant-connection.manager';
 import { assignDefaultRoleToUser } from '../../../scripts/initialize-permissions';
+import { UserResponseMessages } from '@/common/constants/response-messages';
 
 @Injectable()
 export class UsersService {
@@ -25,7 +26,7 @@ export class UsersService {
     });
 
     if (existingUser) {
-      throw new ConflictException(`User with email '${createUserDto.email}' already exists`);
+      throw new BadRequestException(UserResponseMessages.EMAIL_ALREADY_IN_USE);
     }
 
     // Hash password

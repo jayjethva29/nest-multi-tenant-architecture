@@ -25,9 +25,7 @@
     "migration:revert": "npm run typeorm -- migration:revert -d src/config/central-datasource.ts",
     "migration:show": "npm run typeorm -- migration:show -d src/config/central-datasource.ts",
     "migrate:tenant": "ts-node -r tsconfig-paths/register ./scripts/run-tenant-migrations.ts",
-    "migrate:all-tenants": "npm run migrate:tenant",
     "setup:central": "ts-node -r tsconfig-paths/register ./scripts/setup-central-db.ts",
-    "create:tenant": "ts-node -r tsconfig-paths/register ./scripts/create-tenant.ts",
     "docker:up": "docker-compose -f docker/docker-compose.yml up --build",
     "docker:down": "docker-compose -f docker/docker-compose.yml down"
   },

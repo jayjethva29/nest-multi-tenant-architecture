@@ -12,6 +12,7 @@ import { ProductsModule } from './modules/products/products.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { RequestIdInterceptor } from './common/interceptors/request-id.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { ResponseTransformInterceptor } from './common/helpers/response-mapping/response-ransform.interceptor';
 
 @Module({
   imports: [
@@ -67,6 +68,10 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     {
       provide: APP_INTERCEPTOR,
       useClass: LoggingInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ResponseTransformInterceptor,
     },
   ],
 })
