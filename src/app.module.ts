@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { envSchema } from './config/env.schema';
 import { createCentralDataSource } from './config/typeorm.config';
@@ -14,6 +14,7 @@ import { PermissionsModule } from './modules/permissions/permissions.module';
 import { RequestIdInterceptor } from './common/interceptors/request-id.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { ResponseTransformInterceptor } from './common/helpers/response-mapping/response-ransform.interceptor';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
 @Module({
   imports: [
@@ -60,6 +61,12 @@ import { ResponseTransformInterceptor } from './common/helpers/response-mapping/
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+
+    // Global filters
+    {
+      provide: APP_FILTER,
+      useClass: GlobalExceptionFilter,
     },
 
     // Global interceptors
