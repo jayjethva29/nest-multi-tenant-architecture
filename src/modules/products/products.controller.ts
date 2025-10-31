@@ -8,85 +8,103 @@ import {
   Delete,
   Query,
   UseGuards,
-  HttpCode,
-  HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { ProductsService, PaginatedProducts } from './products.service';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { ProductQueryDto } from './dto/product-query.dto';
-import { Product } from './entities/product.entity';
+import { ProductQueryDto } from './dto/product-query-v2.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { JwtPayload } from '../../common/decorators/current-user.decorator';
+import { PaginationResponseDto } from '../../common/dto';
+import { Product } from './entities/product.entity';
 
-@ApiTags('Products')
+@ApiTags('Products V2')
 @Controller('products')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Post()
-  @RequirePermissions({ resource: 'products', action: 'create' })
   @ApiOperation({ summary: 'Create a new product' })
-  @ApiResponse({ status: 201, description: 'Product created successfully', type: Product })
-  @ApiResponse({ status: 400, description: 'Invalid product data' })
-  @ApiResponse({ status: 409, description: 'Product SKU already exists' })
-  async create(
-    @CurrentUser() user: JwtPayload,
-    @Body() createProductDto: CreateProductDto,
-  ): Promise<Product> {
+  @ApiResponse({ status: 201, description: 'Product created successfully' })
+  create(@CurrentUser() user: any, @Body() createProductDto: CreateProductDto): Promise<Product> {
     return this.productsService.create(user.tenantId, createProductDto);
   }
 
   @Get()
-  @RequirePermissions({ resource: 'products', action: 'read' })
-  @ApiOperation({ summary: 'Get all products with pagination and filtering' })
-  @ApiResponse({ status: 200, description: 'List of products' })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'search', required: false, type: String })
-  @ApiQuery({ name: 'category', required: false, type: String })
-  @ApiQuery({ name: 'active', required: false, type: Boolean })
-  @ApiQuery({ name: 'sortBy', required: false, enum: ['name', 'price', 'createdAt'] })
-  @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'] })
-  async findAll(
-    @CurrentUser() currentUser: { tenantId: string },
-    @Query() queryDto: ProductQueryDto,
-  ): Promise<PaginatedProducts> {
-    return this.productsService.findAll(currentUser.tenantId, queryDto);
+  @ApiOperation({ summary: 'Get all products with pagination, search, and filtering' })
+  @ApiResponse({
+    status: 200,
+    description: 'Products retrieved successfully',
+    type: PaginationResponseDto<Product>,
+  })
+  findAll(
+    @CurrentUser() user: any,
+    @Query() query: ProductQueryDto,
+  ): Promise<PaginationResponseDto<Product>> {
+    return this.productsService.findAll(user.tenantId, query);
+  }
+
+  @Get('category/:category')
+  @ApiOperation({ summary: 'Get products by category with pagination' })
+  @ApiResponse({
+    status: 200,
+    description: 'Products by category retrieved successfully',
+    type: PaginationResponseDto<Product>,
+  })
+  findByCategory(
+    @CurrentUser() user: any,
+    @Param('category') category: string,
+    @Query() query: Partial<ProductQueryDto>,
+  ): Promise<PaginationResponseDto<Product>> {
+    return this.productsService.findByCategory(user.tenantId, category, query);
+  }
+
+  @Get('low-stock')
+  @ApiOperation({ summary: 'Get low stock products' })
+  @ApiResponse({
+    status: 200,
+    description: 'Low stock products retrieved successfully',
+    type: PaginationResponseDto<Product>,
+  })
+  findLowStockProducts(
+    @CurrentUser() user: any,
+    @Query('threshold') threshold?: number,
+    @Query() query?: Partial<ProductQueryDto>,
+  ): Promise<PaginationResponseDto<Product>> {
+    return this.productsService.findLowStockProducts(user.tenantId, threshold || 10, query);
+  }
+
+  @Get('price-range')
+  @ApiOperation({ summary: 'Get products in a specific price range' })
+  @ApiResponse({
+    status: 200,
+    description: 'Products in price range retrieved successfully',
+    type: PaginationResponseDto<Product>,
+  })
+  findInPriceRange(
+    @CurrentUser() user: any,
+    @Query('minPrice') minPrice: number,
+    @Query('maxPrice') maxPrice: number,
+    @Query() query: Partial<ProductQueryDto>,
+  ): Promise<PaginationResponseDto<Product>> {
+    return this.productsService.findInPriceRange(user.tenantId, minPrice, maxPrice, query);
   }
 
   @Get(':id')
-  @RequirePermissions({ resource: 'products', action: 'read' })
-  @ApiOperation({ summary: 'Get product by ID' })
-  @ApiResponse({ status: 200, description: 'Product details', type: Product })
-  @ApiResponse({ status: 404, description: 'Product not found' })
-  async findOne(@CurrentUser() user: JwtPayload, @Param('id') id: string): Promise<Product> {
+  @ApiOperation({ summary: 'Get a product by ID' })
+  @ApiResponse({ status: 200, description: 'Product retrieved successfully' })
+  findOne(@CurrentUser() user: any, @Param('id') id: string): Promise<Product> {
     return this.productsService.findOne(user.tenantId, id);
   }
 
-  @Get('sku/:sku')
-  @RequirePermissions({ resource: 'products', action: 'read' })
-  @ApiOperation({ summary: 'Get a product by SKU' })
-  @ApiResponse({ status: 200, description: 'Product found' })
-  @ApiResponse({ status: 404, description: 'Product not found' })
-  async findBySku(@CurrentUser() user: JwtPayload, @Param('sku') sku: string): Promise<Product> {
-    return this.productsService.findBySku(user.tenantId, sku);
-  }
-
   @Patch(':id')
-  @RequirePermissions({ resource: 'products', action: 'update' })
-  @ApiOperation({ summary: 'Update product' })
-  @ApiResponse({ status: 200, description: 'Product updated successfully', type: Product })
-  @ApiResponse({ status: 404, description: 'Product not found' })
-  @ApiResponse({ status: 409, description: 'Product SKU already exists' })
-  async update(
-    @CurrentUser() user: JwtPayload,
+  @ApiOperation({ summary: 'Update a product' })
+  @ApiResponse({ status: 200, description: 'Product updated successfully' })
+  update(
+    @CurrentUser() user: any,
     @Param('id') id: string,
     @Body() updateProductDto: UpdateProductDto,
   ): Promise<Product> {
@@ -94,12 +112,9 @@ export class ProductsController {
   }
 
   @Delete(':id')
-  @RequirePermissions({ resource: 'products', action: 'delete' })
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete product' })
-  @ApiResponse({ status: 204, description: 'Product deleted successfully' })
-  @ApiResponse({ status: 404, description: 'Product not found' })
-  async remove(@CurrentUser() user: JwtPayload, @Param('id') id: string): Promise<void> {
+  @ApiOperation({ summary: 'Delete a product' })
+  @ApiResponse({ status: 200, description: 'Product deleted successfully' })
+  remove(@CurrentUser() user: any, @Param('id') id: string): Promise<void> {
     return this.productsService.remove(user.tenantId, id);
   }
 }

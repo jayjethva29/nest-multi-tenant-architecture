@@ -3,23 +3,87 @@ import { Repository } from 'typeorm';
 import { Product } from './entities/product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { ProductQueryDto } from './dto/product-query.dto';
+import { ProductQueryDto } from './dto/product-query-v2.dto';
 import { TenantConnectionManager } from '../../core/connection/tenant-connection.manager';
-
-export interface PaginatedProducts {
-  data: Product[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
+import {
+  BasePaginatedService,
+  QueryBuilderService,
+  QueryBuilderConfig,
+  PaginationResponseDto,
+  QueryOptions,
+  SortOrder,
+} from '../../common';
 
 @Injectable()
-export class ProductsService {
+export class ProductsService extends BasePaginatedService<Product> {
   private readonly logger = new Logger(ProductsService.name);
 
-  constructor(private readonly tenantConnectionManager: TenantConnectionManager) {}
+  constructor(
+    private tenantConnectionManager: TenantConnectionManager,
+    queryBuilderService: QueryBuilderService,
+  ) {
+    super(queryBuilderService);
+  }
 
+  protected getEntityClass(): new () => Product {
+    return Product;
+  }
+
+  protected getQueryBuilderConfig(): QueryBuilderConfig {
+    return {
+      search: {
+        searchFields: ['name', 'description', 'sku', 'category'],
+      },
+      sort: {
+        defaultSortField: 'createdAt',
+        allowedSortFields: ['name', 'price', 'createdAt', 'updatedAt', 'stockQuantity'],
+        defaultSortOrder: SortOrder.DESC,
+      },
+      pagination: {
+        defaultLimit: 10,
+        maxLimit: 100,
+      },
+    };
+  }
+
+  private async getTenantProductRepository(tenantId: string): Promise<Repository<Product>> {
+    return this.tenantConnectionManager.getTenantRepository(tenantId, Product);
+  }
+
+  /**
+   * Find all products with advanced filtering
+   */
+  async findAll(
+    tenantId: string,
+    queryDto: ProductQueryDto,
+  ): Promise<PaginationResponseDto<Product>> {
+    const options: QueryOptions = {
+      page: queryDto.page,
+      limit: queryDto.limit,
+      search: queryDto.search,
+      sortBy: queryDto.sortBy,
+      sortOrder: queryDto.sortOrder,
+    };
+
+    const productRepository = await this.getTenantProductRepository(tenantId);
+    const baseQuery = productRepository.createQueryBuilder('product');
+
+    // Add category filter if provided
+    if (queryDto.category) {
+      baseQuery.andWhere('product.category = :category', { category: queryDto.category });
+    }
+
+    // Add active filter if provided
+    if (queryDto.active !== undefined) {
+      baseQuery.andWhere('product.active = :active', { active: queryDto.active });
+    }
+
+    return this.findWithQueryBuilder(tenantId, baseQuery, options);
+  }
+
+  /**
+   * Create a new product
+   */
   async create(tenantId: string, createProductDto: CreateProductDto): Promise<Product> {
     const repository = await this.getTenantProductRepository(tenantId);
 
@@ -39,45 +103,9 @@ export class ProductsService {
     return savedProduct;
   }
 
-  async findAll(tenantId: string, queryDto: ProductQueryDto): Promise<PaginatedProducts> {
-    const repository = await this.getTenantProductRepository(tenantId);
-    const { page, limit, search, category, active, sortBy, sortOrder } = queryDto;
-
-    const queryBuilder = repository.createQueryBuilder('product');
-
-    // Apply filters
-    if (search) {
-      queryBuilder.andWhere('(product.name ILIKE :search OR product.description ILIKE :search)', {
-        search: `%${search}%`,
-      });
-    }
-
-    if (category) {
-      queryBuilder.andWhere('product.category = :category', { category });
-    }
-
-    if (active !== undefined) {
-      queryBuilder.andWhere('product.active = :active', { active });
-    }
-
-    // Apply sorting
-    queryBuilder.orderBy(`product.${sortBy}`, sortOrder);
-
-    // Apply pagination
-    const offset = (page - 1) * limit;
-    queryBuilder.skip(offset).take(limit);
-
-    const [data, total] = await queryBuilder.getManyAndCount();
-
-    return {
-      data,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    };
-  }
-
+  /**
+   * Find a product by ID
+   */
   async findOne(tenantId: string, id: string): Promise<Product> {
     const repository = await this.getTenantProductRepository(tenantId);
     const product = await repository.findOne({ where: { id } });
@@ -89,11 +117,15 @@ export class ProductsService {
     return product;
   }
 
+  /**
+   * Update a product
+   */
   async update(tenantId: string, id: string, updateProductDto: UpdateProductDto): Promise<Product> {
     const repository = await this.getTenantProductRepository(tenantId);
+
     const product = await this.findOne(tenantId, id);
 
-    // Check SKU uniqueness if being updated
+    // Check if SKU already exists (if it's being updated)
     if (updateProductDto.sku && updateProductDto.sku !== product.sku) {
       const existingProduct = await repository.findOne({
         where: { sku: updateProductDto.sku },
@@ -111,26 +143,89 @@ export class ProductsService {
     return updatedProduct;
   }
 
+  /**
+   * Remove a product
+   */
   async remove(tenantId: string, id: string): Promise<void> {
     const repository = await this.getTenantProductRepository(tenantId);
     const product = await this.findOne(tenantId, id);
 
     await repository.remove(product);
-    this.logger.log(`Product deleted: ${id} for tenant: ${tenantId}`);
+    this.logger.log(`Product removed: ${id} for tenant: ${tenantId}`);
   }
 
-  async findBySku(tenantId: string, sku: string): Promise<Product> {
-    const repository = await this.getTenantProductRepository(tenantId);
-    const product = await repository.findOne({ where: { sku } });
+  /**
+   * Find products by category with pagination
+   */
+  async findByCategory(
+    tenantId: string,
+    category: string,
+    options: Partial<QueryOptions> = {},
+  ): Promise<PaginationResponseDto<Product>> {
+    const queryOptions: QueryOptions = {
+      page: options.page || 1,
+      limit: options.limit || 10,
+      search: options.search,
+      sortBy: options.sortBy || 'name',
+      sortOrder: options.sortOrder || SortOrder.ASC,
+    };
 
-    if (!product) {
-      throw new NotFoundException(`Product with SKU '${sku}' not found`);
-    }
+    const productRepository = await this.getTenantProductRepository(tenantId);
+    const baseQuery = productRepository
+      .createQueryBuilder('product')
+      .where('product.category = :category', { category });
 
-    return product;
+    return this.findWithQueryBuilder(tenantId, baseQuery, queryOptions);
   }
 
-  private async getTenantProductRepository(tenantId: string): Promise<Repository<Product>> {
-    return this.tenantConnectionManager.getTenantRepository(tenantId, Product);
+  /**
+   * Find low stock products
+   */
+  async findLowStockProducts(
+    tenantId: string,
+    threshold: number = 10,
+    options: Partial<QueryOptions> = {},
+  ): Promise<PaginationResponseDto<Product>> {
+    const queryOptions: QueryOptions = {
+      page: options.page || 1,
+      limit: options.limit || 10,
+      search: options.search,
+      sortBy: options.sortBy || 'stockQuantity',
+      sortOrder: options.sortOrder || SortOrder.ASC,
+    };
+
+    const productRepository = await this.getTenantProductRepository(tenantId);
+    const baseQuery = productRepository
+      .createQueryBuilder('product')
+      .where('product.stockQuantity <= :threshold', { threshold })
+      .andWhere('product.active = :active', { active: true });
+
+    return this.findWithQueryBuilder(tenantId, baseQuery, queryOptions);
+  }
+
+  /**
+   * Search products in a price range
+   */
+  async findInPriceRange(
+    tenantId: string,
+    minPrice: number,
+    maxPrice: number,
+    options: Partial<QueryOptions> = {},
+  ): Promise<PaginationResponseDto<Product>> {
+    const queryOptions: QueryOptions = {
+      page: options.page || 1,
+      limit: options.limit || 10,
+      search: options.search,
+      sortBy: options.sortBy || 'price',
+      sortOrder: options.sortOrder || SortOrder.ASC,
+    };
+
+    const productRepository = await this.getTenantProductRepository(tenantId);
+    const baseQuery = productRepository
+      .createQueryBuilder('product')
+      .where('product.price BETWEEN :minPrice AND :maxPrice', { minPrice, maxPrice })
+      .andWhere('product.active = :active', { active: true });
+
+    return this.findWithQueryBuilder(tenantId, baseQuery, queryOptions);
   }
 }

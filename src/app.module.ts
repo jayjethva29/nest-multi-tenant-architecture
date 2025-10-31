@@ -5,6 +5,7 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { envSchema } from './config/env.schema';
 import { createCentralDataSource } from './config/typeorm.config';
+import { CommonModule } from './common/common.module';
 import { TenantModule } from './core/tenant/tenant.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -47,6 +48,7 @@ import { ResponseTransformInterceptor } from './common/helpers/response-mapping/
     }),
 
     // Feature modules
+    CommonModule,
     TenantModule,
     AuthModule,
     UsersModule,

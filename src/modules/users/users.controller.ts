@@ -1,94 +1,102 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Param,
-  UseGuards,
-  HttpCode,
-  HttpStatus,
-} from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UserQueryDto } from './dto/user-query.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { RequirePermissions } from '../../common/decorators/permissions.decorator';
-import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { JwtPayload } from '../../common/decorators/current-user.decorator';
-import { ResponseMessage } from '../../common/helpers/response-mapping/response.decorator';
-import { UserResponseMessages } from '../../common/constants/response-messages';
+import { PaginationResponseDto } from '../../common/dto';
+import { User } from './entities/user.entity';
 
-@ApiTags('Users')
-@Controller('/users')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@ApiTags('Users V2')
+@Controller('users-v2')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  @Post()
+  @ApiOperation({ summary: 'Create a new user' })
+  @ApiResponse({ status: 201, description: 'User created successfully' })
+  create(@CurrentUser() user: any, @Body() createUserDto: CreateUserDto): Promise<UserResponseDto> {
+    return this.usersService.createUser(user.tenantId, createUserDto);
+  }
+
   @Get()
-  @RequirePermissions({ resource: 'users', action: 'read' })
-  @ResponseMessage(UserResponseMessages.USERS_FETCHED)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get all users in tenant' })
+  @ApiOperation({ summary: 'Get all users with pagination, search, and filtering' })
   @ApiResponse({
     status: 200,
-    description: 'List of users retrieved successfully',
-    type: [UserResponseDto],
+    description: 'Users retrieved successfully',
+    type: PaginationResponseDto<User>,
   })
-  async getAllUsers(@CurrentUser() currentUser: JwtPayload): Promise<UserResponseDto[]> {
-    return this.usersService.getAllUsers(currentUser.tenantId);
+  findAll(
+    @CurrentUser() user: any,
+    @Query() query: UserQueryDto,
+  ): Promise<PaginationResponseDto<User>> {
+    return this.usersService.findAll(user.tenantId, query);
   }
 
-  @Post()
-  @RequirePermissions({ resource: 'users', action: 'create' })
-  @ResponseMessage(UserResponseMessages.USER_CREATED)
-  @ApiBearerAuth()
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a new user in tenant' })
+  @Get('role/:role')
+  @ApiOperation({ summary: 'Get users by role with pagination' })
   @ApiResponse({
-    status: 201,
-    description: 'User created successfully',
-    type: UserResponseDto,
+    status: 200,
+    description: 'Users by role retrieved successfully',
+    type: PaginationResponseDto<User>,
   })
-  @ApiResponse({ status: 400, description: 'Invalid user data' })
-  @ApiResponse({ status: 409, description: 'User email already exists' })
-  async createUser(
-    @Body() createUserDto: CreateUserDto,
-    @CurrentUser() currentUser: JwtPayload,
-  ): Promise<UserResponseDto> {
-    return this.usersService.createUser(currentUser.tenantId, {
-      email: createUserDto.email,
-      password: createUserDto.password,
-      firstName: createUserDto.firstName,
-      lastName: createUserDto.lastName,
-    });
+  findByRole(
+    @CurrentUser() user: any,
+    @Param('role') role: string,
+    @Query() query: Partial<UserQueryDto>,
+  ): Promise<PaginationResponseDto<User>> {
+    return this.usersService.findByRole(user.tenantId, role, query);
   }
 
-  // TODO: This endpoint should be removed after development
-  @Post(':tenantId/admin')
-  @Public()
-  @ResponseMessage(UserResponseMessages.ADMIN_CREATED)
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a new admin user in tenant (Public endpoint)' })
-  @ApiParam({ name: 'tenantId', description: 'Tenant ID' })
+  @Get('active')
+  @ApiOperation({ summary: 'Get active users with pagination' })
   @ApiResponse({
-    status: 201,
-    description: 'Admin user created successfully',
-    type: UserResponseDto,
+    status: 200,
+    description: 'Active users retrieved successfully',
+    type: PaginationResponseDto<User>,
   })
-  @ApiResponse({ status: 400, description: 'Invalid user data' })
-  @ApiResponse({ status: 409, description: 'User email already exists' })
-  async createAdminUser(
-    @Param('tenantId') tenantId: string,
-    @Body() createUserDto: CreateUserDto,
-  ): Promise<UserResponseDto> {
-    return this.usersService.createAdminUser(tenantId, {
-      email: createUserDto.email,
-      password: createUserDto.password,
-      firstName: createUserDto.firstName,
-      lastName: createUserDto.lastName,
-    });
+  findActiveUsers(
+    @CurrentUser() user: any,
+    @Query() query: Partial<UserQueryDto>,
+  ): Promise<PaginationResponseDto<User>> {
+    return this.usersService.findActiveUsers(user.tenantId, query);
+  }
+
+  @Get('domain/:domain')
+  @ApiOperation({ summary: 'Get users by email domain with pagination' })
+  @ApiResponse({
+    status: 200,
+    description: 'Users by email domain retrieved successfully',
+    type: PaginationResponseDto<User>,
+  })
+  findByEmailDomain(
+    @CurrentUser() user: any,
+    @Param('domain') domain: string,
+    @Query() query: Partial<UserQueryDto>,
+  ): Promise<PaginationResponseDto<User>> {
+    return this.usersService.findByEmailDomain(user.tenantId, domain, query);
+  }
+
+  @Get('stats')
+  @ApiOperation({ summary: 'Get user statistics for the tenant' })
+  @ApiResponse({ status: 200, description: 'User statistics retrieved successfully' })
+  getUserStats(@CurrentUser() user: any): Promise<{
+    total: number;
+    active: number;
+    inactive: number;
+    byRole: Record<string, number>;
+  }> {
+    return this.usersService.getUserStats(user.tenantId);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a user by ID' })
+  @ApiResponse({ status: 200, description: 'User retrieved successfully' })
+  findOne(@CurrentUser() user: any, @Param('id') id: string): Promise<UserResponseDto> {
+    return this.usersService.findOne(user.tenantId, id);
   }
 }
